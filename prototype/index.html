@@ -1,21 +1,223 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Criminal Connect</title><style>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Criminal Connect</title>
+<style>
 body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:15px;max-width:1100px;margin:auto}.game{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}.boardWrap{flex:1;min-width:460px}#board{display:grid;grid-template-columns:repeat(7,64px);gap:5px;background:#181818;padding:8px;border-radius:8px;width:max-content}.cell{width:64px;height:64px;border:1px solid #555;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#222;cursor:pointer;position:relative;box-sizing:border-box}.cell:hover{border-color:#aaa}.cell.op4{box-shadow:0 0 0 3px #777}.cell.op5{box-shadow:0 0 0 3px #aaa}.cell.op6{box-shadow:0 0 0 3px #ddd}.cell.op7{box-shadow:0 0 0 4px #ffd700}.pip{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff}.blue{background:#4a7dff}.red{background:#ff5a5a}.asset{position:absolute;bottom:2px;right:2px;width:19px;height:19px;border-radius:50%;background:#111;border:1px solid #ffd700;color:#ffd700;font-size:11px;display:flex;align-items:center;justify-content:center;z-index:3}.capturedAsset{position:absolute;inset:5px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#fff;font-size:22px;border:2px solid #ffd700;z-index:2}.capturedAsset.blue{background:#4a7dff}.capturedAsset.red{background:#ff5a5a}.optag{position:absolute;top:-3px;left:-3px;font-size:9px;background:#111;border:1px solid #777;border-radius:4px;padding:1px 3px;z-index:4}.operation{border-left:3px solid #777;padding:7px 9px;margin:6px 0;background:#222;border-radius:4px}.operation.op5{border-left-color:#aaa}.operation.op6{border-left-color:#ddd}.operation.op7{border-left-color:#ffd700}.operation b{display:block}.small{font-size:12px;color:#aaa}.good{color:#8fda8f}.bad{color:#ff7777}button{margin:4px;padding:8px 12px;background:#292929;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer}button:hover{background:#383838}button:disabled{opacity:.4;cursor:not-allowed}.networkActions{display:flex;gap:6px;margin-top:10px;border-top:1px solid #333;padding-top:8px}.networkActions button{flex:1;margin:0}.primary{font-weight:bold}.resourceBar{display:flex;align-items:center;gap:18px;margin-top:10px;padding:10px 14px;background:#1b1b1b;border:1px solid #333;border-radius:8px}.resource{display:flex;align-items:center;gap:7px;min-width:82px}.resourceOrb{width:30px;height:30px;border-radius:50%;background:#666;border:2px solid #888;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#eee;flex:none}.resourceValue{font-weight:bold}.resourceLabel{font-size:11px;color:#999}.dayInfo{margin-left:auto;text-align:right;font-size:12px;color:#aaa}.dayInfo b{color:#eee;font-size:14px}.income{margin-top:8px;padding:8px;background:#202020;border-radius:5px}.income div{margin:3px 0}#gameModal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}#gameModal.open{display:flex}.modalCard{width:min(560px,100%);max-height:80vh;overflow:auto;background:#1b1b1b;border:1px solid #555;border-radius:10px;box-shadow:0 20px 60px #000}.modalHeader{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #333}.modalHeader h2{margin:0}.modalClose{font-size:20px;padding:3px 9px}.modalBody{padding:14px 16px}.shopItem{padding:10px 0;border-bottom:1px solid #333}.shopItem:last-child{border-bottom:0}.shopItem button{float:right;margin:0}.shopItem small{color:#aaa}.modalHint{color:#999;font-size:12px;margin-top:4px}
-</style></head><body><h1>Criminal Connect</h1><div class="game"><div class="boardWrap"><div id="board"></div><div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Captured Assets belong to that color for the rest of the run.</div><div class="resourceBar" id="resourceBar"></div></div><div class="panel" id="opsPanel"></div></div><div id="gameModal"><div class="modalCard"><div class="modalHeader"><h2 id="modalTitle"></h2><button class="modalClose" onclick="closeModal()">×</button></div><div class="modalBody" id="modalBody"></div></div></div><script>
-const rows=6,cols=7,intelGoal=250;let day=1,turn='blue',cash=10,favors=6,intel=0,heat=20,maxHeat=20,upgrades=[];const board=Array.from({length:rows},()=>Array(cols).fill(null)),assets=['$','F','I','H'];const assetNames={'$':'Cash','F':'Favor','I':'Intel','H':'Heat'};const opNames=['The Safehouse','Smuggling Route','Blackmail Chain','Inside Job','The Long Con','Informant Chain','The Getaway','Dirty Money Trail','The Inside Job','No Witnesses'];let placed=0;while(placed<8){let r=Math.floor(Math.random()*rows),c=Math.floor(Math.random()*cols);if(!board[r][c]){board[r][c]={asset:assets[Math.floor(Math.random()*4)]};placed++;}}const shopPool=[['Inside Man',20,'Captured Assets inside Operations pay +1.'],['Long Con',25,'Operations of length 5+ get x2.'],['Informer',15,'Each Operation produces +2 Intel.'],['Safehouse',15,'Reduce daily Heat cost by 1.'],['Wheelman',20,'Start each day with +1 Favor.'],['Mastermind',30,'Intel gains +25%.'],['Double Take',20,'After each placement, switch color again.'],['Pressure Valve',25,'Reduce daily Heat loss by 3.'],['Cash Flow',15,'Double Cash from Operations.'],['Legendary Score',40,'Length 7+ Operations get x2.']],ops=[];const boardEl=document.getElementById('board'),resourceBar=document.getElementById('resourceBar'),opsPanel=document.getElementById('opsPanel'),gameModal=document.getElementById('gameModal'),modalTitle=document.getElementById('modalTitle'),modalBody=document.getElementById('modalBody');
+</style>
+</head>
+<body>
+<h1>Criminal Connect</h1>
+<div class="game">
+  <div class="boardWrap">
+    <div id="board"></div>
+    <div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Captured Assets belong to that color for the rest of the run.</div>
+    <div class="resourceBar" id="resourceBar"></div>
+  </div>
+  <div class="panel" id="opsPanel"></div>
+</div>
+<div id="gameModal"><div class="modalCard"><div class="modalHeader"><h2 id="modalTitle"></h2><button class="modalClose" onclick="closeModal()">×</button></div><div class="modalBody" id="modalBody"></div></div></div>
+<script>
+const rows=6,cols=7,intelGoal=250;
+let day=1,turn='blue',cash=10,favors=6,intel=0,heat=20,maxHeat=20,upgrades=[];
+const board=Array.from({length:rows},()=>Array(cols).fill(null));
+const assets=['$','F','I','H'];
+const assetNames={'$':'Cash','F':'Favor','I':'Intel','H':'Heat'};
+const opNames=['The Safehouse','Smuggling Route','Blackmail Chain','Inside Job','The Long Con','Informant Chain','The Getaway','Dirty Money Trail','The Inside Job','No Witnesses'];
+let placed=0;
+while(placed<8){
+  const r=Math.floor(Math.random()*rows),c=Math.floor(Math.random()*cols);
+  if(!board[r][c]){board[r][c]={asset:assets[Math.floor(Math.random()*4)]};placed++;}
+}
+const shopPool=[
+ ['Inside Man',20,'Captured Assets inside Operations pay +1.'],
+ ['Long Con',25,'Operations of length 5+ get x2.'],
+ ['Informer',15,'Each Operation produces +2 Intel.'],
+ ['Safehouse',15,'Reduce daily Heat cost by 1.'],
+ ['Wheelman',20,'Start each day with +1 Favor.'],
+ ['Mastermind',30,'Intel gains +25%.'],
+ ['Double Take',20,'After each placement, switch color again.'],
+ ['Pressure Valve',25,'Reduce daily Heat loss by 3.'],
+ ['Cash Flow',15,'Double Cash from Operations.'],
+ ['Legendary Score',40,'Length 7+ Operations get x2.']
+];
+let ops=[];
+const boardEl=document.getElementById('board'),resourceBar=document.getElementById('resourceBar'),opsPanel=document.getElementById('opsPanel'),gameModal=document.getElementById('gameModal'),modalTitle=document.getElementById('modalTitle'),modalBody=document.getElementById('modalBody');
+
 function opClass(len){return len>=7?'op7':len===6?'op6':len===5?'op5':'op4'}
-function draw(){resourceBar.innerHTML=`<div class="resource"><div class="resourceOrb">$</div><div><div class="resourceValue">$${cash}</div><div class="resourceLabel">CASH</div></div></div><div class="resource"><div class="resourceOrb">F</div><div><div class="resourceValue">${favors}</div><div class="resourceLabel">FAVORS</div></div></div><div class="resource"><div class="resourceOrb">I</div><div><div class="resourceValue">${intel}/${intelGoal}</div><div class="resourceLabel">INTEL</div></div></div><div class="resource"><div class="resourceOrb">H</div><div><div class="resourceValue">${heat}/${maxHeat}</div><div class="resourceLabel">HEAT</div></div></div><div class="dayInfo"><b>DAY ${day}</b><br>Playing: ${turn.toUpperCase()}</div>`;let opCells={};ops.forEach((o,i)=>o.cells.forEach(([r,c])=>{if(!opCells[`${r},${c}`]||o.len>opCells[`${r},${c}`].len)opCells[`${r},${c}`]={len:o.len,index:i}}));boardEl.innerHTML='';for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let d=document.createElement('div'),v=board[r][c],oc=opCells[`${r},${c}`];d.className='cell'+(oc?' '+opClass(oc.len):'');if(v&&v.color&&v.asset)d.innerHTML=`<div class="capturedAsset ${v.color}" title="${assetNames[v.asset]} — ${v.color} controlled">${v.asset}</div>`;else if(v&&v.color)d.innerHTML=`<div class="pip ${v.color}">${v.color==='blue'?'B':'R'}</div>`;else if(v&&v.asset)d.innerHTML=`<span class="asset" title="Neutral ${assetNames[v.asset]}">${v.asset}</span>`;if(oc)d.innerHTML+=`<span class="optag">${oc.len}</span>`;d.onclick=()=>drop(c);boardEl.appendChild(d)}renderOperations()}
-function drop(c){if(favors<=0){openModal('No Favors',`<div class="bad">You have no Favors left. End the Day to reset your action economy.</div>`);return}for(let r=rows-1;r>=0;r--){let v=board[r][c];if(v&&v.color)continue;board[r][c]=v&&v.asset?{color:turn,asset:v.asset}:{color:turn};const captured=captureAssets(turn);turn=turn==='blue'?'red':'blue';favors--;if(upgrades.includes('Double Take'))turn=turn==='blue'?'red':'blue';draw();if(captured.length){openModal('Asset Captured',`<div><b>${turn==='blue'?'Red':'Blue'} captured ${captured.map(a=>assetNames[a.asset]).join(', ')}.</b></div><div class="modalHint">That Asset now permanently belongs to the capturing color.</div>`)}return}openModal('Column Full','<span class="bad">That column is full.</span>')}
+
+function draw(){
+  resourceBar.innerHTML=`<div class="resource"><div class="resourceOrb">$</div><div><div class="resourceValue">$${cash}</div><div class="resourceLabel">CASH</div></div></div><div class="resource"><div class="resourceOrb">F</div><div><div class="resourceValue">${favors}</div><div class="resourceLabel">FAVORS</div></div></div><div class="resource"><div class="resourceOrb">I</div><div><div class="resourceValue">${intel}/${intelGoal}</div><div class="resourceLabel">INTEL</div></div></div><div class="resource"><div class="resourceOrb">H</div><div><div class="resourceValue">${heat}/${maxHeat}</div><div class="resourceLabel">HEAT</div></div></div><div class="dayInfo"><b>DAY ${day}</b><br>Playing: ${turn.toUpperCase()}</div>`;
+  const opCells={};
+  ops.forEach((o,i)=>o.cells.forEach(([r,c])=>{
+    const key=`${r},${c}`;
+    if(!opCells[key]||o.len>opCells[key].len)opCells[key]={len:o.len,index:i};
+  }));
+  boardEl.innerHTML='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const d=document.createElement('div'),v=board[r][c],oc=opCells[`${r},${c}`];
+    d.className='cell'+(oc?' '+opClass(oc.len):'');
+    if(v&&v.color&&v.asset)d.innerHTML=`<div class="capturedAsset ${v.color}" title="${assetNames[v.asset]} — ${v.color} controlled">${v.asset}</div>`;
+    else if(v&&v.color)d.innerHTML=`<div class="pip ${v.color}">${v.color==='blue'?'B':'R'}</div>`;
+    else if(v&&v.asset)d.innerHTML=`<span class="asset" title="Neutral ${assetNames[v.asset]}">${v.asset}</span>`;
+    if(oc)d.innerHTML+=`<span class="optag">${oc.len}</span>`;
+    d.onclick=()=>drop(c);
+    boardEl.appendChild(d);
+  }
+  renderOperations();
+}
+
+function drop(c){
+  if(favors<=0){openModal('No Favors','<div class="bad">You have no Favors left. End the Day to reset your action economy.</div>');return;}
+  for(let r=rows-1;r>=0;r--){
+    const v=board[r][c];
+    if(v&&v.color)continue;
+    board[r][c]=v&&v.asset?{color:turn,asset:v.asset}:{color:turn};
+    const captured=captureAssets(turn);
+    const capturedColor=turn;
+    turn=turn==='blue'?'red':'blue';
+    favors--;
+    if(upgrades.includes('Double Take'))turn=turn==='blue'?'red':'blue';
+    draw();
+    if(captured.length)openModal('Asset Captured',`<div><b>${capturedColor==='blue'?'Blue':'Red'} captured ${captured.map(a=>assetNames[a.asset]).join(', ')}.</b></div><div class="modalHint">That Asset now permanently belongs to the capturing color.</div>`);
+    return;
+  }
+  openModal('Column Full','<span class="bad">That column is full.</span>');
+}
+
 function hasColor(r,c,color){return !!board[r]?.[c]?.color&&board[r][c].color===color}
-function lineFrom(r,c,dr,dc,color){let out=[],rr=r,cc=c;while(hasColor(rr,cc,color)){out.push([rr,cc]);rr+=dr;cc+=dc}return out}
-function captureAssets(color){let captured=[],dirs=[[1,0],[0,1],[1,1],[1,-1]];for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let v=board[r][c];if(!v?.asset||v.color)continue;for(let[dr,dc]of dirs){for(let end=0;end<2;end++){let sr=r+(end?dr:-dr),sc=c+(end?dc:-dc),lr=sr,lc=sc,cells=[];while(hasColor(lr,lc,color)&&cells.length<3){cells.push([lr,lc]);lr+=end?dr:-dr;lc+=end?dc:-dc}if(cells.length===3){v.color=color;captured.push(v);break}}if(v.color)break}}}return captured}
-function scan(){let found=[],dirs=[[1,0],[0,1],[1,1],[1,-1]];for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let cell=board[r][c];if(!cell||!cell.color)continue;for(let[dr,dc]of dirs){let before=board[r-dr]?.[c-dc];if(before?.color===cell.color)continue;let len=1,cells=[[r,c]],nr=r+dr,nc=c+dc;while(board[nr]?.[nc]?.color===cell.color){cells.push([nr,nc]);len++;nr+=dr;nc+=dc}if(len>=4)found.push({len,cells,color:cell.color})}}return found}
-function calcOp(o){let mult=o.len===4?2:o.len===5?3:o.len===6?5:8;if(upgrades.includes('Long Con')&&o.len>=5)mult*=2;if(upgrades.includes('Legendary Score')&&o.len>=7)mult*=2;let c=0,i=0,h=0,f=0;o.cells.forEach(([r,col])=>{let v=board[r][col],a=v?.asset;if(!a||!v.color)return;if(a==='$')c+=mult;if(a==='I')i+=mult;if(a==='H')h+=mult;if(a==='F')f+=mult});if(upgrades.includes('Inside Man')){const n=o.cells.filter(([r,col])=>board[r][col]?.asset&&board[r][col]?.color===o.color).length;c+=n;i+=n;h+=n;f+=n}if(upgrades.includes('Cash Flow'))c*=2;if(upgrades.includes('Informer'))i+=2;return{c,i,h,f,mult}}
-function renderOperations(){let content='<h3>Your Network</h3>';if(!ops.length)content+='<div class="small">No Operations yet. Capture Assets and build a line of 4 or more to establish infrastructure.</div>';else content+=ops.map((o,i)=>{let x=calcOp(o),name=o.name||opNames[i%opNames.length];return `<div class="operation ${opClass(o.len)}"><b>${name}</b><span class="small">${o.len} pieces · ${o.color==='blue'?'Blue':'Red'} · pays each Day</span><div>Cash +$${x.c} · Intel +${x.i} · Heat +${x.h}${x.f?' · Favors +'+x.f:''}</div></div>`}).join('');content+=`<div class="networkActions"><button onclick="openShop()">Fence / Shop</button><button class="primary" onclick="endDay()">End Day</button></div>`;opsPanel.innerHTML=content}
+
+function captureAssets(color){
+  const captured=[];
+  const dirs=[[1,0],[0,1],[1,1],[1,-1]];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const v=board[r][c];
+      if(!v||!v.asset||v.color)continue;
+      let claimed=false;
+      for(const [dr,dc] of dirs){
+        for(let end=0;end<2;end++){
+          const step=end?1:-1;
+          let rr=r+dr*step,cc=c+dc*step,count=0;
+          while(hasColor(rr,cc,color)&&count<3){count++;rr+=dr*step;cc+=dc*step;}
+          if(count===3){
+            v.color=color;
+            captured.push(v);
+            claimed=true;
+            break;
+          }
+        }
+        if(claimed)break;
+      }
+    }
+  }
+  return captured;
+}
+
+function scan(){
+  const found=[],dirs=[[1,0],[0,1],[1,1],[1,-1]];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const cell=board[r][c];
+    if(!cell||!cell.color)continue;
+    for(const [dr,dc] of dirs){
+      const before=board[r-dr]?.[c-dc];
+      if(before?.color===cell.color)continue;
+      let len=1,cells=[[r,c]],nr=r+dr,nc=c+dc;
+      while(board[nr]?.[nc]?.color===cell.color){cells.push([nr,nc]);len++;nr+=dr;nc+=dc;}
+      if(len>=4)found.push({len,cells,color:cell.color});
+    }
+  }
+  return found;
+}
+
+function calcOp(o){
+  let mult=o.len===4?2:o.len===5?3:o.len===6?5:8;
+  if(upgrades.includes('Long Con')&&o.len>=5)mult*=2;
+  if(upgrades.includes('Legendary Score')&&o.len>=7)mult*=2;
+  let c=0,i=0,h=0,f=0;
+  o.cells.forEach(([r,col])=>{
+    const v=board[r][col],a=v?.asset;
+    if(!a||!v.color)return;
+    if(a==='$')c+=mult;
+    if(a==='I')i+=mult;
+    if(a==='H')h+=mult;
+    if(a==='F')f+=mult;
+  });
+  if(upgrades.includes('Inside Man')){
+    const n=o.cells.filter(([r,col])=>board[r][col]?.asset&&board[r][col]?.color===o.color).length;
+    c+=n;i+=n;h+=n;f+=n;
+  }
+  if(upgrades.includes('Cash Flow'))c*=2;
+  if(upgrades.includes('Informer'))i+=2;
+  return{c,i,h,f,mult};
+}
+
+function renderOperations(){
+  let content='<h3>Your Network</h3>';
+  if(!ops.length)content+='<div class="small">No Operations yet. Capture Assets and build a line of 4 or more to establish infrastructure.</div>';
+  else content+=ops.map((o,i)=>{
+    const x=calcOp(o),name=o.name||opNames[i%opNames.length];
+    return `<div class="operation ${opClass(o.len)}"><b>${name}</b><span class="small">${o.len} pieces · ${o.color==='blue'?'Blue':'Red'} · pays each Day</span><div>Cash +$${x.c} · Intel +${x.i} · Heat +${x.h}${x.f?' · Favors +'+x.f:''}</div></div>`;
+  }).join('');
+  content+=`<div class="networkActions"><button onclick="openShop()">Fence / Shop</button><button class="primary" onclick="endDay()">End Day</button></div>`;
+  opsPanel.innerHTML=content;
+}
+
 function openModal(title,body){modalTitle.textContent=title;modalBody.innerHTML=body;gameModal.classList.add('open')}
 function closeModal(){gameModal.classList.remove('open')}
-function openShop(){modalTitle.textContent='Fence';modalBody.innerHTML='<div class="modalHint">Spend Cash on permanent upgrades. Bought upgrades remain for the run.</div>'+shopPool.map(s=>{let owned=upgrades.includes(s[0]);return `<div class="shopItem"><button ${cash<s[1]||owned||intel>=intelGoal||heat<=0?'disabled':''} onclick="buy('${s[0].replace(/'/g,"\\'")}',${s[1]})">${owned?'Owned':'Buy $'+s[1]}</button><b>${s[0]}</b><br><small>${s[2]}</small></div>`}).join('');gameModal.classList.add('open')}
-function buy(n,c){if(cash<c||upgrades.includes(n)||intel>=intelGoal||heat<=0)return;cash-=c;upgrades.push(n);openShop();draw()}
-function heatCost(){let base=day<=4?2:day<=8?3:day<=12?4:day<=16?5:6;return Math.max(0,base-(upgrades.includes('Pressure Valve')?3:0)-(upgrades.includes('Safehouse')?1:0))}
-function endDay(){if(intel>=intelGoal||heat<=0)return;scan().forEach(op=>{let key=JSON.stringify(op.cells);if(!ops.find(o=>o.key===key)){ops.push({key,len:op.len,cells:op.cells,color:op.color,name:opNames[ops.length%opNames.length]})}});let dc=0,di=0,dh=0,df=0,lines=[];ops.forEach(o=>{let x=calcOp(o);dc+=x.c;di+=x.i;dh+=x.h;df+=x.f;lines.push(`<div><b>${o.name}</b>: +$${x.c} Cash, +${x.i} Intel${x.h?' , +'+x.h+' Heat':''}${x.f?' , +'+x.f+' Favors':''}</div>`)});if(upgrades.includes('Mastermind'))di=Math.ceil(di*1.25);cash+=dc;intel+=di;heat+=dh;favors+=df;let cost=heatCost();heat-=cost;let startF=2+(upgrades.includes('Wheelman')?1:0);favors+=startF;let paidDay=day;day++;let result=`<div><b>DAY ${paidDay} — THE NETWORK PAYS</b></div><div class="income">${lines.join('')||'<div>No Operations paid out.</div>'}<div>Heat cost: -${cost}</div><div>Daily Favors: +${df+startF}</div></div>`;if(intel>=intelGoal)result+='<p class="good"><b>BIG SCORE COMPLETE!</b> You gathered enough Intel to pull the job.</p>';else if(heat<=0)result+='<p class="bad"><b>BUSTED.</b> The Heat caught up with you.</p>';openModal('The Network Pays',result);draw()}
-gameModal.onclick=e=>{if(e.target===gameModal)closeModal()};draw();</script></body></html>
+
+function openShop(){
+  modalTitle.textContent='Fence';
+  modalBody.innerHTML='<div class="modalHint">Spend Cash on permanent upgrades. Bought upgrades remain for the run.</div>'+shopPool.map(s=>{
+    const owned=upgrades.includes(s[0]);
+    return `<div class="shopItem"><button ${cash<s[1]||owned||intel>=intelGoal||heat<=0?'disabled':''} onclick="buy('${s[0].replace(/'/g,"\\'")}',${s[1]})">${owned?'Owned':'Buy $'+s[1]}</button><b>${s[0]}</b><br><small>${s[2]}</small></div>`;
+  }).join('');
+  gameModal.classList.add('open');
+}
+
+function buy(n,c){
+  if(cash<c||upgrades.includes(n)||intel>=intelGoal||heat<=0)return;
+  cash-=c;
+  upgrades.push(n);
+  openShop();
+  draw();
+}
+
+function heatCost(){
+  const base=day<=4?2:day<=8?3:day<=12?4:day<=16?5:6;
+  return Math.max(0,base-(upgrades.includes('Pressure Valve')?3:0)-(upgrades.includes('Safehouse')?1:0));
+}
+
+function endDay(){
+  if(intel>=intelGoal||heat<=0)return;
+  scan().forEach(op=>{
+    const key=JSON.stringify(op.cells);
+    if(!ops.find(o=>o.key===key))ops.push({key,len:op.len,cells:op.cells,color:op.color,name:opNames[ops.length%opNames.length]});
+  });
+  let dc=0,di=0,dh=0,df=0,lines=[];
+  ops.forEach(o=>{
+    const x=calcOp(o);dc+=x.c;di+=x.i;dh+=x.h;df+=x.f;
+    lines.push(`<div><b>${o.name}</b>: +$${x.c} Cash, +${x.i} Intel${x.h?' , +'+x.h+' Heat':''}${x.f?' , +'+x.f+' Favors':''}</div>`);
+  });
+  if(upgrades.includes('Mastermind'))di=Math.ceil(di*1.25);
+  cash+=dc;intel+=di;heat+=dh;favors+=df;
+  const cost=heatCost();
+  heat-=cost;
+  const startF=2+(upgrades.includes('Wheelman')?1:0);
+  favors+=startF;
+  const paidDay=day;
+  day++;
+  let result=`<div><b>DAY ${paidDay} — THE NETWORK PAYS</b></div><div class="income">${lines.join('')||'<div>No Operations paid out.</div>'}<div>Heat cost: -${cost}</div><div>Daily Favors: +${df+startF}</div></div>`;
+  if(intel>=intelGoal)result+='<p class="good"><b>BIG SCORE COMPLETE!</b> You gathered enough Intel to pull the job.</p>';
+  else if(heat<=0)result+='<p class="bad"><b>BUSTED.</b> The Heat caught up with you.</p>';
+  openModal('The Network Pays',result);
+  draw();
+}
+
+gameModal.onclick=e=>{if(e.target===gameModal)closeModal()};
+draw();
+</script>
+</body>
+</html>
