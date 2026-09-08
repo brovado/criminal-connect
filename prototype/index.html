@@ -13,7 +13,7 @@ body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:15px;max-wi
 <div class="game">
   <div class="boardWrap">
     <div id="board"></div>
-    <div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Gold starts on the board; other Assets can be planted at the Fence. Debris blocks a space until you clear it.</div>
+    <div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Gold coins can become your colour when they complete a Connect 4. Other Assets can be planted at the Fence. Debris blocks a space until you clear it.</div>
     <div class="resourceBar" id="resourceBar"></div>
   </div>
   <div class="panel" id="opsPanel"></div>
@@ -83,8 +83,16 @@ function drop(c){
   if(v&&v.asset)board[r][c]={asset:v.asset,occupied:true};
   else board[r][c]={color:turn,occupied:true};
   const captured=captureAssets(turn),capturedColor=turn;
+  const coinConnections=promoteCoins(turn);
   turn=turn==='blue'?'red':'blue';favors--;if(upgrades.includes('Double Take'))turn=turn==='blue'?'red':'blue';
-  draw();if(captured.length)openModal('Asset Captured',`<div><b>${capturedColor==='blue'?'Blue':'Red'} captured ${captured.map(a=>assetNames[a.asset]).join(', ')}.</b></div><div class="modalHint">That Asset now permanently belongs to the capturing color.</div>`);return;
+  draw();
+  if(captured.length||coinConnections.length){
+   const messages=[];
+   if(captured.length)messages.push(`${captured.map(a=>assetNames[a.asset]).join(', ')} captured`);
+   if(coinConnections.length)messages.push(`${coinConnections.length} Gold coin${coinConnections.length===1?'':'s'} joined the Connect 4`);
+   openModal('Connection Made',`<div><b>${capturedColor==='blue'?'Blue':'Red'}: ${messages.join(' and ')}.</b></div><div class="modalHint">Gold coins are wild for Connect 4: when a coin completes a four-piece line, it permanently becomes that colour.</div>`);
+  }
+  return;
  }
  openModal('Column Full','<span class="bad">That column is full.</span>');
 }
@@ -102,6 +110,30 @@ function captureAssets(color){
   if(claimed)continue;
  }
  return captured;
+}
+function promoteCoins(color){
+ const promoted=[],dirs=[[1,0],[0,1],[1,1],[1,-1]];
+ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+  const v=board[r][c];if(!v||v.asset!=='$'||v.color||!v.occupied)continue;
+  let qualifies=false;
+  for(const[dr,dc]of dirs){
+   for(let start=-3;start<=0;start++){
+    const coinOffset=-start;
+    if(coinOffset<0||coinOffset>3)continue;
+    let valid=true,hasCoin=false;
+    for(let k=0;k<4;k++){
+     const rr=r+(k-coinOffset)*dr,cc=c+(k-coinOffset)*dc;
+     const cell=board[rr]?.[cc];
+     if(rr===r&&cc===c){if(cell?.asset==='$'&&!cell.color)hasCoin=true;else valid=false;}
+     else if(!hasColor(rr,cc,color))valid=false;
+    }
+    if(valid&&hasCoin){qualifies=true;break;}
+   }
+   if(qualifies)break;
+  }
+  if(qualifies){v.color=color;promoted.push(v);}
+ }
+ return promoted;
 }
 function scan(){
  const found=[],dirs=[[1,0],[0,1],[1,1],[1,-1]];
