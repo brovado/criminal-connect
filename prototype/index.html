@@ -13,7 +13,7 @@ body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:15px;max-wi
 <div class="game">
   <div class="boardWrap">
     <div id="board"></div>
-    <div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Gold starts on the map; other Assets can be planted at the Fence.</div>
+    <div class="small" style="margin-top:8px">Capture Assets by building 3 in a row directly into them. Gold starts on the board; other Assets can be planted at the Fence. Debris blocks a space until you clear it.</div>
     <div class="resourceBar" id="resourceBar"></div>
   </div>
   <div class="panel" id="opsPanel"></div>
@@ -21,12 +21,14 @@ body{font-family:Arial,sans-serif;background:#111;color:#eee;padding:15px;max-wi
 <div id="gameModal"><div class="modalCard"><div class="modalHeader"><h2 id="modalTitle"></h2><button class="modalClose" onclick="closeModal()">×</button></div><div class="modalBody" id="modalBody"></div></div></div>
 <script>
 const rows=6,cols=7,intelGoal=250,debrisCount=3;
-let day=1,turn='blue',cash=10,favors=6,intel=0,heat=20,maxHeat=20,upgrades=[];
+let day=1,turn='blue',cash=10,favors=6,intel=0,heat=20,maxHeat=20,upgrades=[],demolitionCharges=0;
 const board=Array.from({length:rows},()=>Array(cols).fill(null));
 const assets=['$','F','I','H'];
 const assetNames={'$':'Cash','F':'Favor','I':'Intel','H':'Heat'};
 const spawnBasePrices={'F':15,'I':10,'H':12};
 const spawnCounts={'F':0,'I':0,'H':0};
+const demolitionBasePrice=25;
+let demolitionPurchases=0;
 const opNames=['The Safehouse','Smuggling Route','Blackmail Chain','Inside Job','The Long Con','Informant Chain','The Getaway','Dirty Money Trail','The Inside Job','No Witnesses'];
 let placed=0;
 while(placed<8){const r=Math.floor(Math.random()*rows),c=Math.floor(Math.random()*cols);if(!board[r][c]){board[r][c]={asset:'$'};placed++;}}
@@ -48,7 +50,7 @@ let ops=[];
 const boardEl=document.getElementById('board'),resourceBar=document.getElementById('resourceBar'),opsPanel=document.getElementById('opsPanel'),gameModal=document.getElementById('gameModal'),modalTitle=document.getElementById('modalTitle'),modalBody=document.getElementById('modalBody');
 function opClass(len){return len>=7?'op7':len===6?'op6':len===5?'op5':'op4'}
 function draw(){
- resourceBar.innerHTML=`<div class="resource"><div class="resourceOrb">$</div><div><div class="resourceValue">$${cash}</div><div class="resourceLabel">CASH</div></div></div><div class="resource"><div class="resourceOrb">F</div><div><div class="resourceValue">${favors}</div><div class="resourceLabel">FAVORS</div></div></div><div class="resource"><div class="resourceOrb">I</div><div><div class="resourceValue">${intel}/${intelGoal}</div><div class="resourceLabel">INTEL</div></div></div><div class="resource"><div class="resourceOrb">H</div><div><div class="resourceValue">${heat}/${maxHeat}</div><div class="resourceLabel">HEAT</div></div></div><div class="dayInfo"><b>DAY ${day}</b><br>Playing: ${turn.toUpperCase()}</div>`;
+ resourceBar.innerHTML=`<div class="resource"><div class="resourceOrb">$</div><div><div class="resourceValue">$${cash}</div><div class="resourceLabel">CASH</div></div></div><div class="resource"><div class="resourceOrb">F</div><div><div class="resourceValue">${favors}</div><div class="resourceLabel">FAVORS</div></div></div><div class="resource"><div class="resourceOrb">I</div><div><div class="resourceValue">${intel}/${intelGoal}</div><div class="resourceLabel">INTEL</div></div></div><div class="resource"><div class="resourceOrb">H</div><div><div class="resourceValue">${heat}/${maxHeat}</div><div class="resourceLabel">HEAT</div></div></div><div class="dayInfo"><b>DAY ${day}</b><br>Playing: ${turn.toUpperCase()}${demolitionCharges?`<br><span class="good">${demolitionCharges} charge${demolitionCharges===1?'':'s'} ready</span>`:''}</div>`;
  const opCells={};ops.forEach((o,i)=>o.cells.forEach(([r,c])=>{const key=`${r},${c}`;if(!opCells[key]||o.len>opCells[key].len)opCells[key]={len:o.len,index:i};}));
  boardEl.innerHTML='';
  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
@@ -57,9 +59,20 @@ function draw(){
   else if(v&&v.color&&v.asset)d.innerHTML=`<div class="capturedAsset ${v.color}" title="${assetNames[v.asset]} — ${v.color} controlled">${v.asset}</div>`;
   else if(v&&v.color)d.innerHTML=`<div class="pip ${v.color}">${v.color==='blue'?'B':'R'}</div>`;
   else if(v&&v.asset)d.innerHTML=`<div class="neutralAsset" title="Neutral ${assetNames[v.asset]}">${v.asset}</div>`;
-  if(oc)d.innerHTML+=`<span class="optag">${oc.len}</span>`;d.onclick=()=>drop(c);boardEl.appendChild(d);
+  if(oc)d.innerHTML+=`<span class="optag">${oc.len}</span>`;
+  d.onclick=()=>handleCellClick(r,c);
+  boardEl.appendChild(d);
  }
  renderOperations();
+}
+function handleCellClick(r,c){
+ if(demolitionCharges>0){
+  if(board[r][c]?.debris){
+   board[r][c]=null;demolitionCharges--;draw();openModal('Debris Cleared','<div class="good"><b>The obstruction is gone.</b></div><div class="modalHint">That space is now open and can be occupied normally.</div>');
+  }else openModal('Charge Armed','<div class="modalHint">A demolition charge is ready. Click a debris marker to clear it.</div>');
+  return;
+ }
+ drop(c);
 }
 function drop(c){
  if(favors<=0){openModal('No Favors','<div class="bad">You have no Favors left. End the Day to reset your action economy.</div>');return;}
@@ -123,10 +136,19 @@ function spawnResource(asset){
  cash-=cost;spawnCounts[asset]++;
  openShop();draw();
 }
+function demolitionPrice(){return demolitionBasePrice+demolitionPurchases*10}
+function buyDemolitionCharge(){
+ const cost=demolitionPrice();
+ if(cash<cost||intel>=intelGoal||heat<=0)return;
+ cash-=cost;demolitionCharges++;demolitionPurchases++;
+ closeModal();draw();openModal('Demolition Charge Armed',`<div><b>Charge ready.</b> Click any debris marker on the board to clear it.</div><div class="modalHint">The cleared space becomes permanently playable.</div>`);
+}
 function openShop(){
  modalTitle.textContent='Fence';
  const spawns=['F','I','H'].map(a=>{const cost=spawnPrice(a);return `<div class="spawnItem"><button ${cash<cost||intel>=intelGoal||heat<=0?'disabled':''} onclick="spawnResource('${a}')">Plant $${cost}</button><b>${assetNames[a]} Asset</b><br><small>Plant a neutral ${assetNames[a]} Asset in a random open spot. Next ${assetNames[a]} costs $${cost+5}.</small></div>`;}).join('');
- modalBody.innerHTML=`<div class="modalHint">Spend Cash on permanent upgrades. Bought upgrades remain for the run.</div><div class="shopSection"><h3>Plant an Asset</h3><div class="modalHint">Gold is already on the board. These resources can be planted from the Fence.</div>${spawns}</div><div class="shopSection"><h3>Upgrades</h3>${shopPool.map(s=>{const owned=upgrades.includes(s[0]);return `<div class="shopItem"><button ${cash<s[1]||owned||intel>=intelGoal||heat<=0?'disabled':''} onclick="buy('${s[0].replace(/'/g,"\\'")}',${s[1]})">${owned?'Owned':'Buy $'+s[1]}</button><b>${s[0]}</b><br><small>${s[2]}</small></div>`;}).join('')}</div>`;
+ const dCost=demolitionPrice();
+ const demolition=`<div class="spawnItem"><button ${cash<dCost||intel>=intelGoal||heat<=0?'disabled':''} onclick="buyDemolitionCharge()">Buy $${dCost}</button><b>Demolition Charge</b><br><small>Buy one charge, then click a Debris marker to destroy it. Next charge costs $${dCost+10}.</small></div>`;
+ modalBody.innerHTML=`<div class="modalHint">Spend Cash on permanent upgrades. Bought upgrades remain for the run.</div><div class="shopSection"><h3>Plant an Asset</h3><div class="modalHint">Gold is already on the board. These resources can be planted from the Fence.</div>${spawns}</div><div class="shopSection"><h3>Clear the Way</h3>${demolition}</div><div class="shopSection"><h3>Upgrades</h3>${shopPool.map(s=>{const owned=upgrades.includes(s[0]);return `<div class="shopItem"><button ${cash<s[1]||owned||intel>=intelGoal||heat<=0?'disabled':''} onclick="buy('${s[0].replace(/'/g,"\\'")}',${s[1]})">${owned?'Owned':'Buy $'+s[1]}</button><b>${s[0]}</b><br><small>${s[2]}</small></div>`;}).join('')}</div>`;
  gameModal.classList.add('open');
 }
 function buy(n,c){if(cash<c||upgrades.includes(n)||intel>=intelGoal||heat<=0)return;cash-=c;upgrades.push(n);openShop();draw()}
